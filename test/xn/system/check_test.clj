@@ -20,7 +20,7 @@
      (fn initial-state [] {:contents {} :t? false})
      :initial-target
      (fn initial-target [] #{})
-     :precondition
+     :run-command?
      (fn pre [{:keys [shrink t?]} [_ f _]]
        (condp = f
          `conj        (not t?)

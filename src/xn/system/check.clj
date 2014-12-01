@@ -12,45 +12,6 @@
 (defn variable? [v]
   (and (symbol? v) (::var (meta v))))
 
-; Simulation runs in 2 phases. First we generate command lists, then we execute
-; them. The state machine is used during both phases, first to enable
-; generation of commands that affect previous results, then to validate actual
-; results against simulated state.
-
-; When generating commands, we call next-state on state machine without
-; executing any command. In place of that command's result, we use a Var
-; instance which the state may treat as a black box representing the result.
-; The state machine may store those vars to use them for future command
-; generation or verification.  So we might have (MyState. #{(Var. 1) (Var. 2)}
-; {:x (Var. 1)}) after some commands have been generated.
-
-; Each var is numbered and permanantly associated to its command. Even when
-; some commands are removed during shrinking, the var numbers associated with
-; the command will not change.
-;
-; Once a test is completely generated, it is passed to the runner which
-; executes each command, this time passing the actual result of running the
-; command to the state machine's `next-state` as well as `postcondition` or
-; `error?` functions. Any vars in commands must refer to previously executed
-; statements, and so before that statement is executed, any vars in the command
-; are replaced with the corresponding value.
-;
-; If an exception is thrown or the `error?` or `postcondition` functions
-; indicate a bad state, the test has failed and now moves into the shrinking
-; stage.
-;
-; If a command throws an exception, the error? and postcondition functions can
-; also accept that as valid. In that case, the keep-result-var? function should
-; usually return false so that subsequent operations are skipped if they expect
-; there to be a valid result in that var position.
-;
-; When shrinking, we first minimize the number of commands needed to reproduce,
-; then attempt to shrink the arguments those commands are given. To do that we
-; again use the state machine. Each command subset is validated to ensure that
-; all vars a command refers to will exist in the subset, then to ensure that
-; the state preconditions should be expected to pass. This can greatly reduce
-; the number of invalid tests generated.
-
 (defmacro state-command [state idx bindings commands]
   (let [commands (mapv (fn [[cond command]] `(when ~cond ~command)) commands)
         commands (condp = (count bindings)
@@ -81,7 +42,7 @@
 (defn extract-vars [root]
   (filter variable? (tree-seq coll? seq root)))
 
-(defn shrink-operations* [{:keys [initial-state precondition next-state]} op-roses]
+(defn shrink-operations* [{:keys [initial-state run-command? next-state]} op-roses]
   ; Build a custom rose tree that more effectively searches the space
   ; - search pairs then triples, etc.
   ; - relative sequence is preserved
@@ -99,9 +60,9 @@
                    commands (map second operations)
                    used-vars (extract-vars commands)]
                (when (and (every? available-vars used-vars)
-                          (or (not precondition)
+                          (or (not run-command?)
                               (reduce (fn [state [var command]]
-                                        (if (precondition state command)
+                                        (if (run-command? state command)
                                           (next-state state command var)
                                           (reduced nil)))
                                       (assoc (initial-state) ::shrink true)
@@ -150,15 +111,10 @@
                          indices#)]
              (shrink-operations* sim# op-roses#)))))))
 
-(defn- isrecord?
-  "clojure.core/record? is only defined in Clojure 1.6+"
-  [x]
-  (instance? clojure.lang.IRecord x))
+(defn- tmap-empty [c]
+  (if (record? c) c (or (empty c) [])))
 
-(defn tmap-empty [c]
-  (if (isrecord? c) c (or (empty c) [])))
-
-(defn tmap [recurse? apply? f c]
+(defn- tmap [recurse? apply? f c]
   (cond
     (recurse? c)
     (into (tmap-empty c)
@@ -207,11 +163,11 @@
 (defn runner
   "Required: initial-state next-state
    Optional:
-     precondition - default to no precondition
+     run-command? - default to no precondition
      postcondition - default to no checks for bad state after command execution and state transition
      error? - default to no checks for bad state after command execution and state transition
    _
-   If included, precondition must return true for the command to be executed. It's
+   If included, run-command? must return true for the command to be executed. It's
    useful for general state checks and also to validate functions when shrinking and some
    setup may have been removed.
    _
@@ -224,7 +180,7 @@
      keep-result-var? - defaults that any Throwable is not to be stored in a Var
      on-error - default throws ex-info
      eval-command - [`f [:as args]] -> (apply f args)"
-  [{:keys [initial-state precondition next-state postcondition] :as sim}]
+  [{:keys [initial-state run-command? next-state postcondition] :as sim}]
   (assert (fn? initial-state) "Simulation must specify :initial-state function")
   (assert (fn? next-state) "Simulation must specify :next-state function")
   (let [eval-command (get sim :eval-command eval-command)
@@ -244,8 +200,8 @@
                     available-vars (set (keys @vars))
                     command (prepare-command target @vars pre-command)]
                 (if (and (every? available-vars used-vars)
-                         (or (not precondition)
-                             (precondition state command)))
+                         (or (not run-command?)
+                             (run-command? state command)))
                   (let [result (eval-command target @vars command)
                         keep? (keep-result-var? state command result)
                         state' (next-state state command result)]
