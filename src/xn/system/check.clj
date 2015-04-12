@@ -139,11 +139,14 @@
          :custom (target vars [f args]))
        (catch Throwable t t))))
 
+(defn error-message [{:keys [error cause] :as data}]
+  (cond
+    error (str "Error detected: " error)
+    (instance? Throwable cause) (str "Simulation exception: " (.getMessage ^Throwable cause))
+    :else "Postcondition failed"))
+
 (defn on-error [{:keys [error cause] :as data}]
-  (let [message (cond
-                  error (str "Error detected: " error)
-                  (instance? Throwable cause) (str "Simulation exception: " (.getMessage ^Throwable cause))
-                  :else "Postcondition failed")
+  (let [message (error-message data)
         data (select-keys data [:var :state :target :result :command])]
     (if cause
       (throw (ex-info message data cause))
