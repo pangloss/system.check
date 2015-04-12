@@ -1,9 +1,11 @@
 (ns xn.system.check.generators
   (:require [clojure.core :as core]
-            [clojure.test.check.generators :refer
-             [char-alpha-numeric choose elements fmap frequency generator?
-              make-gen one-of return tuple]])
+            [clojure.test.check.generators :as gen
+             :refer [fmap generator?  return tuple]])
   (:refer-clojure :exclude [keyword]))
+
+(defn make-gen [generator-fn]
+  (gen/->Generator generator-fn))
 
 (defn map-size
   "Create a new generator with `size` always `(f n)`."
@@ -11,31 +13,6 @@
   (make-gen
     (fn [rnd size]
       (gen rnd (f size)))))
-
-(def char-alpha
-  "Generate alpha characters."
-  (fmap char
-        (one-of [(choose 65 90)
-                 (choose 97 122)])))
-
-(def char-symbol-special
-  "Generate non-alphanumeric characters that can be in a symbol."
-  (elements [\* \+ \! \- \_ \?]))
-
-(def char-keyword-rest
-  "Generate characters that can be the char following first of a keyword."
-  (frequency [[2 char-alpha-numeric]
-              [1 char-symbol-special]]))
-
-(def char-keyword-first
-  "Generate characters that can be the first char of a keyword."
-  (frequency [[2 char-alpha]
-              [1 char-symbol-special]]))
-
-(def keyword
-  "Generate keywords."
-  (->> (tuple char-keyword-first (vector char-keyword-rest))
-       (fmap (fn [[c cs]] (core/keyword (clojure.string/join (cons c cs)))))))
 
 (defprotocol LiteralGenerator
   (literal* [this]))

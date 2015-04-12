@@ -94,7 +94,7 @@
            max-size# (:max-size sim# 50)]
        (assert (fn? initial-state#) "Simulation must specify :initial-state function")
        (assert (fn? next-state#) "Simulation must specify :next-state function")
-       (gen/make-gen
+       (sc-gen/make-gen
          (fn [rnd# size#]
            (let [gen-indices# (sc-gen/map-size #(inc (* 2 %)) (gen/vector (gen/no-shrink gen/pos-int)))
                  indices# (rose/root (gen/call-gen gen-indices# rnd# size#))
