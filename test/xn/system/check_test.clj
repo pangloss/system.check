@@ -67,7 +67,7 @@
 
 
 ; With size > 100, this will almost certainly fail on Clojure 1.5.1:
-(defspec transient-state-test 10 test-set)
+(defspec transient-state-test 100 test-set)
 
 (comment
 
