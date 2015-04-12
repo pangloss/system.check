@@ -1,4 +1,4 @@
-(defproject xn.system.check "0.1.0-SNAPSHOT"
+(defproject com.xnlogic/system.check "0.1.0-SNAPSHOT"
   :description "Plug simulation capability in to test.check"
   :url "https://xnlogic.com"
   :license {:name "Eclipse Public License"
