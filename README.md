@@ -1,6 +1,6 @@
 # system.check
 
-A Clojure library designed to ... well, that part is up to you.
+Extend test.check to test stateful systems.
 
 ## Usage
 
