@@ -2,6 +2,7 @@
   (:import (java.io Writer))
   (:require [clojure.test.check.generators :as gen]
             [xn.system.check.generators :as sc-gen]
+            [xn.system.check.util :as util]
             [clojure.test.check.properties :refer [for-all*]]
             [clojure.test.check.rose-tree :as rose]
             [clojure.math.combinatorics :refer [combinations]]))
@@ -25,19 +26,12 @@
 (defn get-command* [op-rose]
   (second (rose/root op-rose)))
 
-(defn- unchunk
-  "Borrowed from math.combinatorics"
-  [s]
-  (lazy-seq
-   (when (seq s)
-     (cons (first s) (unchunk (rest s))))))
-
 (defn subsets-rose [items]
   [items
    (mapcat (fn [n]
              (map (comp subsets-rose vec)
                   (combinations items n)))
-           (unchunk (reverse (range 1 (count items)))))])
+           (util/unchunk (util/reverse-range 1 (count items))))])
 
 (defn extract-vars [root]
   (filter variable? (tree-seq coll? seq root)))
@@ -56,7 +50,7 @@
            (fn [indices]
              (let [selected-roses (mapv #(nth op-roses %) indices)
                    operations (map rose/root selected-roses)
-                   available-vars (conj (set (map first operations)) init-var)
+                   available-vars (into #{init-var} (map first operations))
                    commands (map second operations)
                    used-vars (extract-vars commands)]
                (when (and (every? available-vars used-vars)
@@ -111,21 +105,8 @@
                          indices#)]
              (shrink-operations* sim# op-roses#)))))))
 
-(defn- tmap-empty [c]
-  (if (record? c) c (or (empty c) [])))
-
-(defn- tmap [recurse? apply? f c]
-  (cond
-    (recurse? c)
-    (into (tmap-empty c)
-          (map (partial tmap recurse? apply? f) c))
-    (apply? c)
-    (f c)
-    :else
-    c))
-
 (defn prepare-command [target vars [method f args]]
-  [method f (tmap coll? variable? vars args)])
+  [method f (util/tmap coll? variable? vars args)])
 
 (defn eval-command [target vars [method f args]]
   (let [f' (if (and (not= :custom method) (symbol? f))
@@ -186,13 +167,13 @@
   [{:keys [initial-state run-command? next-state postcondition] :as sim}]
   (assert (fn? initial-state) "Simulation must specify :initial-state function")
   (assert (fn? next-state) "Simulation must specify :next-state function")
-  (let [eval-command (get sim :eval-command eval-command)
-        prepare-command (get sim :prepare-command prepare-command)
-        on-error (get sim :on-error on-error)
-        error? (get sim :error? error?)
-        initial-target (get sim :initial-target (constantly nil))
+  (let [eval-command     (get sim :eval-command eval-command)
+        prepare-command  (get sim :prepare-command prepare-command)
+        on-error         (get sim :on-error on-error)
+        error?           (get sim :error? error?)
+        initial-target   (get sim :initial-target (constantly nil))
         keep-result-var? (get sim :keep-result-var? keep-result-var?)
-        reduce (get sim :reduce reduce)]
+        reduce           (get sim :reduce reduce)]
     (fn [operations]
       (let [init-target (initial-target)
             vars (atom {(variable :init) init-target}) ]
