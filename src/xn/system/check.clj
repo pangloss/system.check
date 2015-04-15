@@ -106,7 +106,7 @@
              (shrink-operations* sim# op-roses#)))))))
 
 (defn prepare-command [target vars [method f args]]
-  [method f (util/tmap coll? variable? vars args)])
+  [method f (util/tmap variable? vars args)])
 
 (defn eval-command [target vars [method f args]]
   (let [f' (if (and (not= :custom method) (symbol? f))

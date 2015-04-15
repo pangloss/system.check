@@ -15,11 +15,11 @@
 
 (defn tmap
   "Map over a tree of data"
-  [recurse? apply? f c]
+  [apply? f c]
   (cond
-    (recurse? c)
+    (coll? c)
     (into (tmap-empty c)
-          (map #(tmap recurse? apply? f %)
+          (map #(tmap apply? f %)
                c))
     (apply? c)
     (f c)
