@@ -1,5 +1,4 @@
 (ns xn.system.check
-  (:import (java.io Writer))
   (:require [clojure.test.check.generators :as gen]
             [xn.system.check.generators :as sc-gen]
             [xn.system.check.util :as util]
@@ -84,9 +83,9 @@
   (let [commands (partition 2 commands)]
     `(let [sim# ~sim
            initial-state# (:initial-state sim#)
+           _# (assert (fn? initial-state#) "Simulation must specify :initial-state function")
            next-state# (:next-state sim#)
            max-size# (:max-size sim# 50)]
-       (assert (fn? initial-state#) "Simulation must specify :initial-state function")
        (assert (fn? next-state#) "Simulation must specify :next-state function")
        (sc-gen/make-gen
          (fn [rnd# size#]
@@ -108,9 +107,9 @@
 (defn prepare-command [target vars [method f args]]
   [method f (util/tmap variable? vars args)])
 
-(defn eval-command [target vars [method f args]]
+(defn eval-command [ns target vars [method f args]]
   (let [f' (if (and (not= :custom method) (symbol? f))
-             (eval f)
+             (ns-resolve ns f)
              f)]
     (try
        (condp = method
@@ -126,12 +125,19 @@
     (instance? Throwable cause) (str "Simulation exception: " (.getMessage ^Throwable cause))
     :else "Postcondition failed"))
 
-(defn on-error [{:keys [error cause] :as data}]
+(defn quiet-on-error [{:keys [error cause] :as data}]
   (let [message (error-message data)
         data (select-keys data [:var :state :target :result :command])]
     (if cause
       (throw (ex-info message data cause))
       (throw (ex-info message data)))))
+
+(defn on-error [data]
+  (binding [*out* *err*]
+    (println "\nFailure with " (count (:fail data)) " commands: " (error-message data))
+    (when (> 20 (count (:fail data)))
+      (doseq [c (:fail data)] (print "  ") (prn c))))
+  (quiet-on-error data))
 
 (defn error? [state command result]
   (when (instance? Throwable result)
@@ -160,11 +166,13 @@
    ok, which is easier to write!
    _
    Optional behaviour configuration:
+     ns - allows 'symbol to be resolved in the given namespace, in addition to `symbol.
      reduce - allows you to switch between reduce and reductions
      keep-result-var? - defaults that any Throwable is not to be stored in a Var
-     on-error - default throws ex-info
-     eval-command - [`f [:as args]] -> (apply f args)"
-  [{:keys [initial-state run-command? next-state postcondition] :as sim}]
+     on-error - default prints error and shrinking progress and throws ex-info
+     eval-command - [state target vars [method f args]] -> (apply f args)"
+
+  [{:keys [initial-state run-command? next-state postcondition ns] :as sim}]
   (assert (fn? initial-state) "Simulation must specify :initial-state function")
   (assert (fn? next-state) "Simulation must specify :next-state function")
   (let [eval-command     (get sim :eval-command eval-command)
@@ -173,7 +181,12 @@
         error?           (get sim :error? error?)
         initial-target   (get sim :initial-target (constantly nil))
         keep-result-var? (get sim :keep-result-var? keep-result-var?)
-        reduce           (get sim :reduce reduce)]
+        reduce           (get sim :reduce reduce)
+        ns               (cond (symbol? ns)
+                               (do (require ns)
+                                   (the-ns ns))
+                               ns ns
+                               :else (the-ns 'user))]
     (fn [operations]
       (let [init-target (initial-target)
             vars (atom {(variable :init) init-target}) ]
@@ -186,7 +199,7 @@
                 (if (and (every? available-vars used-vars)
                          (or (not run-command?)
                              (run-command? state command)))
-                  (let [result (eval-command target @vars command)
+                  (let [result (eval-command ns target @vars command)
                         keep? (keep-result-var? state command result)
                         state' (next-state state command result)]
                     (try
