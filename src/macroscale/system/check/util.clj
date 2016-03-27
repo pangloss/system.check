@@ -1,4 +1,4 @@
-(ns xn.system.check.util)
+(ns macroscale.system.check.util)
 
 (defn unchunk
   "Borrowed from math.combinatorics"

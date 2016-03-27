@@ -1,6 +1,6 @@
-(ns xn.system.check-test
+(ns macroscale.system.check-test
   (:use clojure.test)
-  (:require [xn.system.check :refer [simulator gen-operations simulator*]]
+  (:require [macroscale.system.check :refer [simulator gen-operations simulator*]]
             [clojure.test.check :as tc]
             [clojure.set :as set :refer [map-invert]]
             [clojure.core.match :refer [match]]

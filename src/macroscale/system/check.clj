@@ -1,7 +1,7 @@
-(ns xn.system.check
+(ns macroscale.system.check
   (:require [clojure.test.check.generators :as gen]
-            [xn.system.check.generators :as sc-gen]
-            [xn.system.check.util :as util]
+            [macroscale.system.check.generators :as sc-gen]
+            [macroscale.system.check.util :as util]
             [clojure.test.check.properties :refer [for-all*]]
             [clojure.test.check.rose-tree :as rose]
             [clojure.math.combinatorics :refer [combinations]]))

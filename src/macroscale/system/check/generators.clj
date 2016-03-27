@@ -1,4 +1,4 @@
-(ns xn.system.check.generators
+(ns macroscale.system.check.generators
   (:require [clojure.core :as core]
             [clojure.test.check.generators :as gen
              :refer [fmap generator?  return tuple]])

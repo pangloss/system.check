@@ -1,6 +1,6 @@
-(defproject com.xnlogic/system.check "0.1.0-SNAPSHOT"
+(defproject macroscale/system.check "0.1.0-SNAPSHOT"
   :description "Plug simulation capability in to test.check"
-  :url "https://xnlogic.com"
+  :url "https://macroscale.com/open-source"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]

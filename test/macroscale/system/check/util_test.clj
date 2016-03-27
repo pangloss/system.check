@@ -1,6 +1,6 @@
-(ns xn.system.check.util-test
+(ns macroscale.system.check.util-test
   (:use clojure.test
-        xn.system.check.util))
+        macroscale.system.check.util))
 
 
 (deftest test-reverse-range
