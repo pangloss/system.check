@@ -26,11 +26,12 @@
   (second (rose/root op-rose)))
 
 (defn subsets-rose [items]
-  [items
-   (mapcat (fn [n]
-             (map (comp subsets-rose vec)
-                  (combinations items n)))
-           (util/unchunk (util/reverse-range 1 (count items))))])
+  (rose/make-rose
+    items
+    (mapcat (fn [n]
+              (map (comp subsets-rose vec)
+                   (combinations items n)))
+            (util/unchunk (util/reverse-range 1 (count items))))))
 
 (defn extract-vars [root]
   (filter variable? (tree-seq coll? seq root)))
