@@ -12,7 +12,17 @@
 (defn variable? [v]
   (and (symbol? v) (::var (meta v))))
 
-(defmacro state-command [state idx bindings commands]
+(defn idx-level
+  "Arbitrary but stable way to quantify any index in a set from 0-1 to use together with command frequency."
+  [idx indices]
+  (let [mx (apply max indices)
+        mn (apply min indices)
+        top (- mx mn)]
+    (if (zero? top)
+      0
+      (/ (- idx mn) top))))
+
+(defmacro state-command [state idx bindings commands indices]
   (let [commands (mapv (fn [[cond command]] `(when ~cond ~command)) commands)
         commands (condp = (count bindings)
                    1 `(let [~(first bindings) ~state] ~commands)
@@ -20,7 +30,16 @@
                    (assert false "Generate commands with either [state] or [state-map initial-value-var] bindings."))]
     `(let [commands# (->> ~commands (filter identity) vec)]
        (when (seq commands#)
-         (nth commands# (mod ~idx (count commands#)))))))
+         (loop [idx# ~idx]
+           (let [freq-idx# (idx-level idx# ~indices)
+                 command# (nth commands# (mod idx# (count commands#)))
+                 freq# (:freq (meta command#))]
+             (if freq#
+               (if (< freq-idx# (Math/abs freq#))
+                 command#
+                 (let [n# (long (* idx# (min freq-idx# 0.99)))]
+                   (recur n#)))
+               command#)))))))
 
 (defn get-command* [op-rose]
   (second (rose/root op-rose)))
@@ -66,8 +85,16 @@
                  ;                                  shrunk operations ...]]
                  ; first shrink by number of commands. If we pass all of those, shrink by operations
                  (rose/zip vector selected-roses)))))
+         (rose/filter #(and % (rose/root %)))
          rose/join
          (rose/filter identity))))
+
+(def index-generator
+  (->> gen/pos-int
+       (sc-gen/map-size #(* % 100000))
+       gen/no-shrink
+       gen/vector
+       (sc-gen/map-size #(inc (* 2 %)))))
 
 ; - generate a vector of positive ints
 ; - inside the state loop, working through those ints:
@@ -90,12 +117,11 @@
        (assert (fn? next-state#) "Simulation must specify :next-state function")
        (sc-gen/make-gen
          (fn [rnd# size#]
-           (let [gen-indices# (sc-gen/map-size #(inc (* 2 %)) (gen/vector (gen/no-shrink gen/pos-int)))
-                 indices# (rose/root (gen/call-gen gen-indices# rnd# size#))
+           (let [indices# (rose/root (gen/call-gen index-generator rnd# size#))
                  [op-roses# _# _#]
                  (reduce (fn [[op-roses# state# counter#] idx#]
                            (let [var# (variable counter#)
-                                 command# (state-command state# idx# ~bindings ~commands)
+                                 command# (state-command state# idx# ~bindings ~commands indices#)
                                  operation# [var# command#]
                                  operation-rose# (gen/call-gen (sc-gen/literal operation#) rnd# (mod size# max-size#))]
                              [(conj op-roses# operation-rose#)
@@ -112,13 +138,16 @@
   (let [f' (if (and (not= :custom method) (symbol? f))
              (ns-resolve ns f)
              f)]
-    (try
-       (condp = method
-         :apply (apply f' args)
-         :-> (apply f' target args)
-         :->> (apply f' (concat args [target]))
-         :custom (target vars [f args]))
-       (catch Throwable t t))))
+    ;(prn (name f))
+    (if f'
+      (try
+        (condp = method
+          :apply (apply f' args)
+          :-> (apply f' target args)
+          :->> (apply f' (concat args [target]))
+          :custom (target vars [f args]))
+        (catch Throwable t t))
+      (throw (ex-info (str "Unable to resolve function " f) {:function f :method method :args args})))))
 
 (defn error-message [{:keys [error cause] :as data}]
   (cond
@@ -181,6 +210,7 @@
         on-error         (get sim :on-error on-error)
         error?           (get sim :error? error?)
         initial-target   (get sim :initial-target (constantly nil))
+        cleanup          (get sim :cleanup (constantly nil))
         keep-result-var? (get sim :keep-result-var? keep-result-var?)
         reduce           (get sim :reduce reduce)
         ns               (cond (symbol? ns)
@@ -189,46 +219,56 @@
                                ns ns
                                :else (the-ns 'user))]
     (fn [operations]
-      (let [init-target (initial-target)
-            vars (atom {(variable :init) init-target}) ]
-        (reduce
-          (fn [[state target :as ignore] [v pre-command]]
-            (try
-              (let [used-vars (extract-vars pre-command)
-                    available-vars (set (keys @vars))
-                    command (prepare-command target @vars pre-command)]
-                (if (and (every? available-vars used-vars)
-                         (or (not run-command?)
-                             (run-command? state command)))
-                  (let [result (eval-command ns target @vars command)
-                        keep? (keep-result-var? state command result)
-                        state' (next-state state command result)]
-                    (try
-                      (let [failed (when postcondition (not (postcondition state' command result)))
-                            error (error? state' command result)]
-                        (when keep?
-                          (swap! vars assoc v result))
-                        (if (or error failed)
-                          (on-error {:error error :var v :vars @vars :fail operations
-                                     :pre-state state :state state'
-                                     :pre-command pre-command :command command
-                                     :target target :result result})
-                          [state' result]))
-                      (catch Throwable t
-                        (if (:state (ex-data t))
-                          (throw t)
-                          (on-error {:var v :vars @vars :fail operations
-                                     :pre-state state :state state'
-                                     :pre-command pre-command :command command
-                                     :target target :result result :cause t})))))
-                  ignore))
-              (catch Throwable t
-                (if (:state (ex-data t))
-                  (throw t)
-                  (on-error {:var v :vars @vars :fail operations :state state
-                             :command pre-command :target target :cause t})))))
-          [(assoc (initial-state) ::run true) init-target]
-          operations)))))
+      (try
+        (let [init-target (initial-target)
+              vars (atom {(variable :init) init-target}) ]
+          (try
+            (let [state
+                  (reduce
+                    (fn [[state target :as ignore] [v pre-command]]
+                      (try
+                        (let [used-vars (extract-vars pre-command)
+                              available-vars (set (keys @vars))
+                              command (prepare-command target @vars pre-command)]
+                          (if (and (every? available-vars used-vars)
+                                   (or (not run-command?)
+                                       (run-command? state command)))
+                            (let [result (eval-command ns target @vars command)
+                                  keep? (keep-result-var? state command result)
+                                  state' (next-state state command result)]
+                              (try
+                                (let [failed (when postcondition (not (postcondition state' command result)))
+                                      error (error? state' command result)]
+                                  (when keep?
+                                    (swap! vars assoc v result))
+                                  (if (or error failed)
+                                    (on-error {:error error :var v :vars @vars :fail operations
+                                               :pre-state state :state state'
+                                               :pre-command pre-command :command command
+                                               :target target :result result})
+                                    [state' result]))
+                                (catch Throwable t
+                                  (if (:state (ex-data t))
+                                    (throw t)
+                                    (on-error {:var v :vars @vars :fail operations
+                                               :pre-state state :state state'
+                                               :pre-command pre-command :command command
+                                               :target target :result result :cause t})))))
+                            ignore))
+                        (catch Throwable t
+                          (if (:state (ex-data t))
+                            (throw t)
+                            (on-error {:var v :vars @vars :fail operations :state state
+                                       :command pre-command :target target :cause t})))))
+                    [(assoc (initial-state) ::run true) init-target]
+                    operations)]
+              (try (cleanup init-target nil state)
+                   (catch Throwable e
+                     (prn e)))
+              state)
+            (catch Throwable e
+              (cleanup init-target e nil)
+              (throw e))))))))
 
 (defn simulator* [sim sim-gen]
   (for-all* [sim-gen] (runner sim)))
