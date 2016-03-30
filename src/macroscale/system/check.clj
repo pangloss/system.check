@@ -4,6 +4,7 @@
             [macroscale.system.check.util :as util]
             [clojure.test.check.properties :refer [for-all*]]
             [clojure.test.check.rose-tree :as rose]
+            [clojure.test.check.random :refer [split-n]]
             [clojure.math.combinatorics :refer [combinations]]))
 
 (defn variable [n]
@@ -15,12 +16,10 @@
 (defn idx-level
   "Arbitrary but stable way to quantify any index in a set from 0-1 to use together with command frequency."
   [idx indices]
-  (let [mx (apply max indices)
-        mn (apply min indices)
-        top (- mx mn)]
+  (let [top (apply max indices)]
     (if (zero? top)
       0
-      (/ (- idx mn) top))))
+      (/ idx top))))
 
 (defmacro state-command [state idx bindings commands indices]
   (let [commands (mapv (fn [[cond command]] `(when ~cond ~command)) commands)
@@ -123,7 +122,9 @@
                            (let [var# (variable counter#)
                                  command# (state-command state# idx# ~bindings ~commands indices#)
                                  operation# [var# command#]
-                                 operation-rose# (gen/call-gen (sc-gen/literal operation#) rnd# (mod size# max-size#))]
+                                 operation-rose# (gen/call-gen (sc-gen/literal operation#)
+                                                               (last (split-n rnd# (inc counter#)))
+                                                               (mod size# max-size#))]
                              [(conj op-roses# operation-rose#)
                               (next-state# state# (get-command* operation-rose#) var#)
                               (inc counter#)]))
@@ -292,7 +293,7 @@
    (pprint result-clj)
    (eval result-clj)
    "
-  [[commands] & {:keys [init trace]}]
+  [[commands] & {:keys [trace]}]
   (letfn [(->apply [[v [_ f args]]]
             `[~v (~f ~@args)])]
     (let [commands
@@ -300,12 +301,11 @@
                   true (map ->apply)
                   trace (mapcat (fn [[v c]]
                                   `[[~'_ (do (print "\n>>>>>> ") (prn '~c))]
-                                    [~v ~c]]))
+                                    [~v ~c]
+                                    [~'_ (do (print "   > ") (prn ~v))]]))
                   true (apply concat)
                   true vec)
             ~(first (last commands)))]
-      (if init
-        `(let [~'v:init ~init
-               ~'result ~commands]
-           [~'v:init ~'result])
-        commands))))
+      `(fn [~'v:init]
+         (let [~'result ~commands]
+           [~'v:init ~'result])))))
