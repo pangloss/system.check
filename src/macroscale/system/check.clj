@@ -118,18 +118,18 @@
          (fn [rnd# size#]
            (let [indices# (rose/root (gen/call-gen index-generator rnd# size#))
                  [op-roses# _# _#]
-                 (reduce (fn [[op-roses# state# counter#] idx#]
+                 (reduce (fn [[op-roses# state# counter#] [rnd# idx#]]
                            (let [var# (variable counter#)
                                  command# (state-command state# idx# ~bindings ~commands indices#)
                                  operation# [var# command#]
                                  operation-rose# (gen/call-gen (sc-gen/literal operation#)
-                                                               (last (split-n rnd# (inc counter#)))
+                                                               rnd#
                                                                (mod size# max-size#))]
                              [(conj op-roses# operation-rose#)
                               (next-state# state# (get-command* operation-rose#) var#)
                               (inc counter#)]))
                          [[] (initial-state#) 0]
-                         indices#)]
+                         (map vector (split-n rnd# (count indices#)) indices#))]
              (shrink-operations* sim# op-roses#)))))))
 
 (defn prepare-command [target vars [method f args]]
