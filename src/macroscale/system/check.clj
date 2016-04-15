@@ -71,22 +71,20 @@
                    available-vars (into #{init-var} (map first operations))
                    commands (map second operations)
                    used-vars (extract-vars commands)]
-               (when (and (every? available-vars used-vars)
-                          (or (not run-command?)
-                              (reduce (fn [state [var command]]
-                                        (if (run-command? state command)
-                                          (next-state state command var)
-                                          (reduced nil)))
-                                      (assoc (initial-state) ::shrink true)
-                                      operations)))
-                 ; Hopefully this does the following:
-                 ; each rose should be [operations [less operations ...
-                 ;                                  shrunk operations ...]]
-                 ; first shrink by number of commands. If we pass all of those, shrink by operations
-                 (rose/zip vector selected-roses)))))
-         (rose/filter #(and % (rose/root %)))
-         rose/join
-         (rose/filter identity))))
+               (if (and (every? available-vars used-vars)
+                        (or (not run-command?)
+                            (reduce (fn [state [var command]]
+                                      (if (run-command? state command)
+                                        (next-state state command var)
+                                        (reduced nil)))
+                                    (assoc (initial-state) ::shrink true)
+                                    operations)))
+                 ; each rose is [operations [less operations ...
+                 ;                           shrunk arguments ...]]
+                 ; first shrink by number of commands. If we pass all of those, shrink arguments
+                 (rose/zip vector selected-roses)
+                 (rose/pure nil)))))
+         rose/join)))
 
 (def index-generator
   (->> gen/pos-int
