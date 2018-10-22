@@ -92,8 +92,12 @@ Copyright © 2014 Darrick Wiebe
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
 
-
 ## Reference
 
  * Blog posts and videos (some of these may refer to simple-check):
+  * [Testing the Hard Stuff and Staying Sane](https://www.youtube.com/watch?v=zi0rHwfiX1Q)
   * [Powerful Testing with test.check - Clojure/West](https://www.youtube.com/watch?v=JMhNINPo__g)
+ * Related publications
+  * [Software Testing with QuickCheck](https://www.researchgate.net/profile/John_Hughes13/publication/225219256_Software_Testing_with_QuickCheck/links/00b4952bf4213093ca000000.pdf)
+  * [Testing Telecoms Software with Quviq QuickCheck](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.148.6554&rep=rep1&type=pdf)
+  * [QuickCheck Testing for Fun and Profit](https://pdfs.semanticscholar.org/5ae2/5681ff881430797268c5787d7d9ee6cf542c.pdf)
