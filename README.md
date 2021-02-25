@@ -101,3 +101,5 @@ your option) any later version.
    * [Software Testing with QuickCheck](https://www.researchgate.net/profile/John_Hughes13/publication/225219256_Software_Testing_with_QuickCheck/links/00b4952bf4213093ca000000.pdf)
    * [Testing Telecoms Software with Quviq QuickCheck](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.148.6554&rep=rep1&type=pdf)
    * [QuickCheck Testing for Fun and Profit](https://pdfs.semanticscholar.org/5ae2/5681ff881430797268c5787d7d9ee6cf542c.pdf)
+ * [Similar projects](https://github.com/search?q=clojure+state+check)
+   * The good ideas across several of these projects (plus the state of the art) should really be consolidated
