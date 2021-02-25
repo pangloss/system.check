@@ -13,7 +13,7 @@ Unlike a cond statement, all matching conditions are eligible for generation.
 Once the eligible commands are decided, one will be randomly chosen to be
 generated.
 
-```
+```clojure
 (defspec simulate-something 1000
   (system.check/simulator
     {:initial-state  (fn [])
